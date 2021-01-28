@@ -1,4 +1,11 @@
-cmake_minimum_required(VERSION 2.8.0)
+cmake_minimum_required(VERSION 3.2)
+
+include("cmake/HunterGate.cmake")
+HunterGate(
+    URL "https://github.com/cpp-pm/hunter/archive/v0.23.291.tar.gz"
+    SHA1 "4f57243b24a02b9c7ec5ea02c09d5c77c6a97cba"
+)
+
 project(harfbuzz)
 
 enable_testing()
@@ -254,10 +261,17 @@ set (subset_project_headers
 
 ## Find and include needed header folders and libraries
 if (HB_HAVE_FREETYPE)
-  include (FindFreetype)
-  if (NOT FREETYPE_FOUND)
-    message(FATAL_ERROR "HB_HAVE_FREETYPE was set, but we failed to find it. Maybe add a CMAKE_PREFIX_PATH= to your Freetype2 install prefix")
-  endif ()
+  if(HUNTER_ENABLED)
+    hunter_add_package(freetype)
+    find_package(freetype CONFIG REQUIRED)
+    set(FREETYPE_LIBRARIES freetype::freetype)
+    get_target_property(FREETYPE_INCLUDE_DIRS freetype::freetype INTERFACE_INCLUDE_DIRECTORIES)
+  else(HUNTER_ENABLED)
+    include (FindFreetype)
+    if (NOT FREETYPE_FOUND)
+      message(FATAL_ERROR "HB_HAVE_FREETYPE was set, but we failed to find it. Maybe add a CMAKE_PREFIX_PATH= to your Freetype2 install prefix")
+    endif ()
+  endif
 
   list(APPEND THIRD_PARTY_LIBS ${FREETYPE_LIBRARIES})
   include_directories(AFTER ${FREETYPE_INCLUDE_DIRS})
@@ -313,12 +327,19 @@ endif ()
 if (HB_HAVE_ICU)
   add_definitions(-DHAVE_ICU)
 
-  # https://github.com/WebKit/webkit/blob/master/Source/cmake/FindICU.cmake
-  find_package(PkgConfig)
-  pkg_check_modules(PC_ICU QUIET icu-uc)
+  if(HUNTER_ENABLED)
+    hunter_add_package(ICU)
+    find_package(ICU CONFIG REQUIRED)
+    set(ICU_LIBRARY ICU::uc)
+    get_target_property(ICU_INCLUDE_DIR ICU::uc INTERFACE_INCLUDE_DIRECTORIES)
+  else(HUNTER_ENABLED)
+    # https://github.com/WebKit/webkit/blob/master/Source/cmake/FindICU.cmake
+    find_package(PkgConfig)
+    pkg_check_modules(PC_ICU QUIET icu-uc)
 
-  find_path(ICU_INCLUDE_DIR NAMES unicode/utypes.h HINTS ${PC_ICU_INCLUDE_DIRS} ${PC_ICU_INCLUDEDIR})
-  find_library(ICU_LIBRARY NAMES libicuuc cygicuuc cygicuuc32 icuuc HINTS ${PC_ICU_LIBRARY_DIRS} ${PC_ICU_LIBDIR})
+    find_path(ICU_INCLUDE_DIR NAMES unicode/utypes.h HINTS ${PC_ICU_INCLUDE_DIRS} ${PC_ICU_INCLUDEDIR})
+    find_library(ICU_LIBRARY NAMES libicuuc cygicuuc cygicuuc32 icuuc HINTS ${PC_ICU_LIBRARY_DIRS} ${PC_ICU_LIBDIR})
+  endif()
 
   include_directories(${ICU_INCLUDE_DIR})
 
@@ -338,30 +359,46 @@ if (APPLE AND HB_HAVE_CORETEXT)
   list(APPEND project_headers ${PROJECT_SOURCE_DIR}/src/hb-coretext.h)
 
   if (HB_IOS)
-    find_library(COREFOUNDATION CoreFoundation)
-    if (COREFOUNDATION)
-      list(APPEND THIRD_PARTY_LIBS ${COREFOUNDATION})
-    endif ()
-    mark_as_advanced(COREFOUNDATION)
+    if (HUNTER_ENABLED)
+      find_package(corefoundation REQUIRED)
+      list(APPEND THIRD_PARTY_LIBS corefoundation::corefoundation)
 
-    find_library(CORETEXT CoreText)
-    if (CORETEXT)
-      list(APPEND THIRD_PARTY_LIBS ${CORETEXT})
-    endif ()
-    mark_as_advanced(CORETEXT)
+      find_package(coretext REQUIRED)
+      list(APPEND THIRD_PARTY_LIBS coretext::coretext)
 
-    find_library(COREGRAPHICS CoreGraphics)
-    if (COREGRAPHICS)
-      list(APPEND THIRD_PARTY_LIBS ${COREGRAPHICS})
+      find_package(coregraphics REQUIRED)
+      list(APPEND THIRD_PARTY_LIBS coregraphics::coregraphics)
+    else ()
+      find_library(COREFOUNDATION CoreFoundation)
+      if (COREFOUNDATION)
+        list(APPEND THIRD_PARTY_LIBS ${COREFOUNDATION})
+      endif ()
+      mark_as_advanced(COREFOUNDATION)
+
+      find_library(CORETEXT CoreText)
+      if (CORETEXT)
+        list(APPEND THIRD_PARTY_LIBS ${CORETEXT})
+      endif ()
+      mark_as_advanced(CORETEXT)
+
+      find_library(COREGRAPHICS CoreGraphics)
+      if (COREGRAPHICS)
+        list(APPEND THIRD_PARTY_LIBS ${COREGRAPHICS})
+      endif ()
+      mark_as_advanced(COREGRAPHICS)
     endif ()
-    mark_as_advanced(COREGRAPHICS)
   else ()
-    find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices)
-    if (APPLICATION_SERVICES_FRAMEWORK)
-      list(APPEND THIRD_PARTY_LIBS ${APPLICATION_SERVICES_FRAMEWORK})
-    endif ()
+    if (HUNTER_ENABLED)
+      find_package(applicationservices REQUIRED)
+      list(APPEND THIRD_PARTY_LIBS applicationservices::applicationservices)
+    else ()
+      find_library(APPLICATION_SERVICES_FRAMEWORK ApplicationServices)
+      if (APPLICATION_SERVICES_FRAMEWORK)
+        list(APPEND THIRD_PARTY_LIBS ${APPLICATION_SERVICES_FRAMEWORK})
+      endif ()
 
-    mark_as_advanced(APPLICATION_SERVICES_FRAMEWORK)
+      mark_as_advanced(APPLICATION_SERVICES_FRAMEWORK)
+    endif ()
   endif ()
 endif ()
 
@@ -762,71 +799,51 @@ endif ()
 
 
 ## Install
-include (GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+set(ConfigPackageLocation lib/cmake/harfbuzz)
 
-if (NOT SKIP_INSTALL_HEADERS AND NOT SKIP_INSTALL_ALL)
-  install(FILES ${project_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/harfbuzz)
-  if (HB_HAVE_GOBJECT)
-    install(FILES ${hb_gobject_headers} ${hb_gobject_gen_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/harfbuzz)
-  endif ()
-endif ()
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
+  VERSION ${HB_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
 
-if (NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
-  install(TARGETS harfbuzz
-    EXPORT harfbuzzConfig
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    FRAMEWORK DESTINATION Library/Frameworks
-  )
-  install(EXPORT harfbuzzConfig
-      NAMESPACE harfbuzz::
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/harfbuzz
-  )
-  if (HB_BUILD_UTILS)
-    if (WIN32 AND BUILD_SHARED_LIBS)
-      install(TARGETS harfbuzz-subset
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      )
-    endif ()
-    install(TARGETS hb-view
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-    install(TARGETS hb-subset
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
+configure_package_config_file(cmake/harfbuzzConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
+  INSTALL_DESTINATION "${ConfigPackageLocation}"
+)
 
-    install(TARGETS hb-shape
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
+install(TARGETS harfbuzz
+  EXPORT harfbuzzTargets
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include/harfbuzz
+)
 
-    install(TARGETS hb-ot-shape-closure
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-  endif ()
-  if (HB_HAVE_GOBJECT)
-    install(TARGETS harfbuzz-gobject
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-    if (HB_HAVE_INTROSPECTION)
-      if ("${CMAKE_GENERATOR}" MATCHES "Visual Studio*")
-        set (hb_libpath "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIGURATION>")
-      else ()
-        set (hb_libpath "$<TARGET_FILE_DIR:harfbuzz-gobject>")
-      endif ()
+export(EXPORT harfbuzzTargets
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzTargets.cmake"
+  NAMESPACE harfbuzz::
+)
 
-      install(FILES "${hb_libpath}/HarfBuzz-0.0.gir"
-        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/gir-1.0
-      )
+install(EXPORT harfbuzzTargets
+  FILE
+    harfbuzzTargets.cmake
+  NAMESPACE
+    harfbuzz::
+  DESTINATION
+    ${ConfigPackageLocation}
+)
 
-      install(FILES "${hb_libpath}/HarfBuzz-0.0.typelib"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/girepository-1.0
-      )
-    endif ()
-  endif ()
-endif ()
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
+  DESTINATION
+    ${ConfigPackageLocation}
+  COMPONENT
+    Devel
+)
 
 if (HB_BUILD_TESTS)
   ## src/ executables

@@ -271,7 +271,7 @@ if (HB_HAVE_FREETYPE)
     if (NOT FREETYPE_FOUND)
       message(FATAL_ERROR "HB_HAVE_FREETYPE was set, but we failed to find it. Maybe add a CMAKE_PREFIX_PATH= to your Freetype2 install prefix")
     endif ()
-  endif
+  endif()
 
   list(APPEND THIRD_PARTY_LIBS ${FREETYPE_LIBRARIES})
   include_directories(AFTER ${FREETYPE_INCLUDE_DIRS})

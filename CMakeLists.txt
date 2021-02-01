@@ -799,51 +799,71 @@ endif ()
 
 
 ## Install
-include(CMakePackageConfigHelpers)
-set(ConfigPackageLocation lib/cmake/harfbuzz)
+include (GNUInstallDirs)
 
-write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
-  VERSION ${HB_VERSION}
-  COMPATIBILITY AnyNewerVersion
-)
+if (NOT SKIP_INSTALL_HEADERS AND NOT SKIP_INSTALL_ALL)
+  install(FILES ${project_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/harfbuzz)
+  if (HB_HAVE_GOBJECT)
+    install(FILES ${hb_gobject_headers} ${hb_gobject_gen_headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/harfbuzz)
+  endif ()
+endif ()
 
-configure_package_config_file(cmake/harfbuzzConfig.cmake.in
-  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
-  INSTALL_DESTINATION "${ConfigPackageLocation}"
-)
+if (NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
+  install(TARGETS harfbuzz
+    EXPORT harfbuzzConfig
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    FRAMEWORK DESTINATION Library/Frameworks
+  )
+  install(EXPORT harfbuzzConfig
+      NAMESPACE harfbuzz::
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/harfbuzz
+  )
+  if (HB_BUILD_UTILS)
+    if (WIN32 AND BUILD_SHARED_LIBS)
+      install(TARGETS harfbuzz-subset
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      )
+    endif ()
+    install(TARGETS hb-view
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+    install(TARGETS hb-subset
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 
-install(TARGETS harfbuzz
-  EXPORT harfbuzzTargets
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include/harfbuzz
-)
+    install(TARGETS hb-shape
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 
-export(EXPORT harfbuzzTargets
-  FILE "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzTargets.cmake"
-  NAMESPACE harfbuzz::
-)
+    install(TARGETS hb-ot-shape-closure
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  endif ()
+  if (HB_HAVE_GOBJECT)
+    install(TARGETS harfbuzz-gobject
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+    if (HB_HAVE_INTROSPECTION)
+      if ("${CMAKE_GENERATOR}" MATCHES "Visual Studio*")
+        set (hb_libpath "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIGURATION>")
+      else ()
+        set (hb_libpath "$<TARGET_FILE_DIR:harfbuzz-gobject>")
+      endif ()
 
-install(EXPORT harfbuzzTargets
-  FILE
-    harfbuzzTargets.cmake
-  NAMESPACE
-    harfbuzz::
-  DESTINATION
-    ${ConfigPackageLocation}
-)
+      install(FILES "${hb_libpath}/HarfBuzz-0.0.gir"
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/gir-1.0
+      )
 
-install(
-  FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
-  DESTINATION
-    ${ConfigPackageLocation}
-  COMPONENT
-    Devel
-)
+      install(FILES "${hb_libpath}/HarfBuzz-0.0.typelib"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/girepository-1.0
+      )
+    endif ()
+  endif ()
+endif ()
 
 if (HB_BUILD_TESTS)
   ## src/ executables

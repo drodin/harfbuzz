@@ -8,8 +8,6 @@ HunterGate(
 
 project(harfbuzz)
 
-remove_definitions(-Werror)
-
 enable_testing()
 
 ## Limit framework build to Xcode generator

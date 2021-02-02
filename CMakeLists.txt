@@ -8,6 +8,8 @@ HunterGate(
 
 project(harfbuzz)
 
+remove_definitions(-Werror)
+
 enable_testing()
 
 ## Limit framework build to Xcode generator
@@ -810,13 +812,17 @@ endif ()
 
 if (NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
   install(TARGETS harfbuzz
-    EXPORT harfbuzzConfig
+    EXPORT harfbuzzTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     FRAMEWORK DESTINATION Library/Frameworks
   )
-  install(EXPORT harfbuzzConfig
+  export(EXPORT harfbuzzTargets
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzTargets.cmake"
+    NAMESPACE harfbuzz::
+  )
+  install(EXPORT harfbuzzTargets
       NAMESPACE harfbuzz::
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/harfbuzz
   )
@@ -864,6 +870,30 @@ if (NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
     endif ()
   endif ()
 endif ()
+
+include(CMakePackageConfigHelpers)
+set(ConfigPackageLocation lib/cmake/harfbuzz)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
+  VERSION ${HB_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(cmake/harfbuzzConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
+  INSTALL_DESTINATION "${ConfigPackageLocation}"
+)
+
+install(
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/harfbuzz/harfbuzzConfigVersion.cmake"
+  DESTINATION
+    ${ConfigPackageLocation}
+  COMPONENT
+    Devel
+)
 
 if (HB_BUILD_TESTS)
   ## src/ executables

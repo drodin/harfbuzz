@@ -1235,6 +1235,7 @@ struct PairSet
       buffer->idx = pos;
       return_trace (true);
     }
+    buffer->unsafe_to_concat (buffer->idx, pos + 1);
     return_trace (false);
   }
 
@@ -1580,6 +1581,8 @@ struct PairPosFormat2
     bool applied_second = valueFormat2.apply_value (c, this, v + len1, buffer->pos[skippy_iter.idx]);
     if (applied_first || applied_second)
       buffer->unsafe_to_break (buffer->idx, skippy_iter.idx + 1);
+    else
+      buffer->unsafe_to_concat (buffer->idx, skippy_iter.idx + 1);
 
     buffer->idx = skippy_iter.idx;
     if (len2)

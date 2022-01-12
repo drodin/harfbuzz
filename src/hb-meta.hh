@@ -49,6 +49,10 @@ template <bool b> using hb_bool_constant = hb_integral_constant<bool, b>;
 using hb_true_type = hb_bool_constant<true>;
 using hb_false_type = hb_bool_constant<false>;
 
+/* Static-assert as expression. */
+template <bool cond> struct static_assert_expr;
+template <> struct static_assert_expr<true> : hb_false_type {};
+#define static_assert_expr(C) static_assert_expr<C>::value
 
 /* Basic type SFINAE. */
 
@@ -80,8 +84,8 @@ template <typename T> using hb_type_identity = typename hb_type_identity_t<T>::t
 
 struct
 {
-  template <typename T>
-  T* operator () (T& arg) const
+  template <typename T> constexpr T*
+  operator () (T& arg) const
   {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
@@ -171,29 +175,29 @@ using hb_is_cr_convertible = hb_bool_constant<
 /* std::move and std::forward */
 
 template <typename T>
-static hb_remove_reference<T>&& hb_move (T&& t) { return (hb_remove_reference<T>&&) (t); }
+static constexpr hb_remove_reference<T>&& hb_move (T&& t) { return (hb_remove_reference<T>&&) (t); }
 
 template <typename T>
-static T&& hb_forward (hb_remove_reference<T>& t) { return (T&&) t; }
+static constexpr T&& hb_forward (hb_remove_reference<T>& t) { return (T&&) t; }
 template <typename T>
-static T&& hb_forward (hb_remove_reference<T>&& t) { return (T&&) t; }
+static constexpr T&& hb_forward (hb_remove_reference<T>&& t) { return (T&&) t; }
 
 struct
 {
-  template <typename T> auto
+  template <typename T> constexpr auto
   operator () (T&& v) const HB_AUTO_RETURN (hb_forward<T> (v))
 
-  template <typename T> auto
+  template <typename T> constexpr auto
   operator () (T *v) const HB_AUTO_RETURN (*v)
 }
 HB_FUNCOBJ (hb_deref);
 
 struct
 {
-  template <typename T> auto
+  template <typename T> constexpr auto
   operator () (T&& v) const HB_AUTO_RETURN (hb_forward<T> (v))
 
-  template <typename T> auto
+  template <typename T> constexpr auto
   operator () (T& v) const HB_AUTO_RETURN (hb_addressof (v))
 }
 HB_FUNCOBJ (hb_ref);
@@ -219,6 +223,8 @@ struct hb_reference_wrapper<T&>
   T* v;
 };
 
+
+/* Type traits */
 
 template <typename T>
 using hb_is_integral = hb_bool_constant<
@@ -292,6 +298,15 @@ template <> struct hb_int_max<unsigned long long>	: hb_integral_constant<unsigne
 #define hb_int_max(T) hb_int_max<T>::value
 
 
+/* Class traits. */
+
+#define HB_DELETE_COPY_ASSIGN(TypeName) \
+  TypeName(const TypeName&) = delete; \
+  void operator=(const TypeName&) = delete
+#define HB_DELETE_CREATE_COPY_ASSIGN(TypeName) \
+  TypeName() = delete; \
+  TypeName(const TypeName&) = delete; \
+  void operator=(const TypeName&) = delete
 
 template <typename T, typename>
 struct _hb_is_destructible : hb_false_type {};
@@ -343,7 +358,6 @@ using hb_is_move_assignable = hb_is_assignable<hb_add_lvalue_reference<T>,
 
 template <typename T> union hb_trivial { T value; };
 
-/* Don't know how to do the following. */
 template <typename T>
 using hb_is_trivially_destructible= hb_is_destructible<hb_trivial<T>>;
 #define hb_is_trivially_destructible(T) hb_is_trivially_destructible<T>::value
@@ -396,5 +410,16 @@ using hb_is_trivial= hb_bool_constant<
 >;
 #define hb_is_trivial(T) hb_is_trivial<T>::value
 
+/* hb_unwrap_type (T)
+ * If T has no T::type, returns T. Otherwise calls itself on T::type recursively.
+ */
+
+template <typename T, typename>
+struct _hb_unwrap_type : hb_type_identity_t<T> {};
+template <typename T>
+struct _hb_unwrap_type<T, hb_void_t<typename T::type>> : _hb_unwrap_type<typename T::type, void> {};
+template <typename T>
+using hb_unwrap_type = _hb_unwrap_type<T, void>;
+#define hb_unwrap_type(T) typename hb_unwrap_type<T>::type
 
 #endif /* HB_META_HH */

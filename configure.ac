@@ -1,6 +1,6 @@
 AC_PREREQ([2.64])
 AC_INIT([HarfBuzz],
-        [2.5.1],
+        [2.8.0],
         [https://github.com/harfbuzz/harfbuzz/issues/new],
         [harfbuzz],
         [http://harfbuzz.org/])
@@ -23,9 +23,9 @@ AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
 AC_PROG_CXX
-AX_CXX_COMPILE_STDCXX(11,, optional)
+AX_CXX_COMPILE_STDCXX(11)
 AC_SYS_LARGEFILE
-PKG_PROG_PKG_CONFIG([0.20])
+PKG_PROG_PKG_CONFIG([0.28])
 AM_MISSING_PROG([RAGEL], [ragel])
 AM_MISSING_PROG([GIT], [git])
 
@@ -46,16 +46,7 @@ AC_SUBST(HB_VERSION)
 # Libtool version
 m4_define([hb_version_int],
 	  m4_eval(hb_version_major*10000 + hb_version_minor*100 + hb_version_micro))
-m4_if(m4_eval(hb_version_minor % 2), [1],
-      dnl for unstable releases
-      [m4_define([hb_libtool_revision], 0)],
-      dnl for stable releases
-      [m4_define([hb_libtool_revision], hb_version_micro)])
-m4_define([hb_libtool_age],
-	  m4_eval(hb_version_int - hb_libtool_revision))
-m4_define([hb_libtool_current],
-	  m4_eval(hb_libtool_age))
-HB_LIBTOOL_VERSION_INFO=hb_libtool_current:hb_libtool_revision:hb_libtool_age
+HB_LIBTOOL_VERSION_INFO=hb_version_int:0:hb_version_int
 AC_SUBST(HB_LIBTOOL_VERSION_INFO)
 
 AC_ARG_WITH([libstdc++],
@@ -77,14 +68,8 @@ GTK_DOC_CHECK([1.15],[--flavour no-tmpl])
 ])
 
 # Functions and headers
-AC_CHECK_FUNCS(atexit mprotect sysconf getpagesize mmap isatty newlocale strtod_l posix_memalign)
-
-save_libs="$LIBS"
-LIBS="$LIBS -lm"
-AC_CHECK_FUNCS([round], ,[AC_CHECK_DECLS([round], , ,[#include <math.h>])])
-LIBS="$save_libs"
-
-AC_CHECK_HEADERS(unistd.h sys/mman.h xlocale.h stdbool.h)
+AC_CHECK_FUNCS(atexit mprotect sysconf getpagesize mmap isatty)
+AC_CHECK_HEADERS(unistd.h sys/mman.h stdbool.h)
 
 # Compiler flags
 AC_CANONICAL_HOST
@@ -141,14 +126,6 @@ fi
 AM_CONDITIONAL(HAVE_PTHREAD, $have_pthread)
 
 dnl ==========================================================================
-
-have_fallback=true
-if $have_fallback; then
-	AC_DEFINE(HAVE_FALLBACK, 1, [Have simple TrueType Layout backend])
-fi
-AM_CONDITIONAL(HAVE_FALLBACK, $have_fallback)
-
-dnl ===========================================================================
 
 AC_ARG_WITH(glib,
 	[AS_HELP_STRING([--with-glib=@<:@yes/no/auto@:>@],
@@ -262,25 +239,6 @@ AC_ARG_WITH(icu,
 have_icu=false
 if test "x$with_icu" = "xyes" -o "x$with_icu" = "xbuiltin" -o "x$with_icu" = "xauto"; then
 	PKG_CHECK_MODULES(ICU, icu-uc, have_icu=true, :)
-
-	dnl Fallback to icu-config if ICU pkg-config files could not be found
-	if test "$have_icu" != "true"; then
-		AC_CHECK_TOOL(ICU_CONFIG, icu-config, no)
-		AC_MSG_CHECKING([for ICU by using icu-config fallback])
-		if test "$ICU_CONFIG" != "no" && "$ICU_CONFIG" --version >/dev/null; then
-			have_icu=true
-			# We don't use --cflags as this gives us a lot of things that we don't
-			# necessarily want, like debugging and optimization flags
-			# See man (1) icu-config for more info.
-			ICU_CFLAGS=`$ICU_CONFIG --cppflags`
-			ICU_LIBS=`$ICU_CONFIG --ldflags-searchpath --ldflags-libsonly`
-			AC_SUBST(ICU_CFLAGS)
-			AC_SUBST(ICU_LIBS)
-			AC_MSG_RESULT([yes])
-		else
-			AC_MSG_RESULT([no])
-		fi
-	fi
 fi
 if test \( "x$with_icu" = "xyes" -o "x$with_icu" = "xbuiltin" \) -a "x$have_icu" != "xtrue"; then
 	AC_MSG_ERROR([icu support requested but icu-uc not found])
@@ -375,6 +333,28 @@ AM_CONDITIONAL(HAVE_UNISCRIBE, $have_uniscribe)
 
 dnl ===========================================================================
 
+AC_ARG_WITH(gdi,
+	[AS_HELP_STRING([--with-gdi=@<:@yes/no/auto@:>@],
+			[Provide GDI integration helpers @<:@default=no@:>@])],,
+	[with_gdi=no])
+have_gdi=false
+if test "x$with_gdi" = "xyes" -o "x$with_gdi" = "xauto"; then
+	AC_CHECK_HEADERS(windows.h, have_gdi=true)
+fi
+if test "x$with_gdi" = "xyes" -a "x$have_gdi" != "xtrue"; then
+	AC_MSG_ERROR([gdi support requested but not found])
+fi
+if $have_gdi; then
+	GDI_CFLAGS=
+	GDI_LIBS="-lgdi32"
+	AC_SUBST(GDI_CFLAGS)
+	AC_SUBST(GDI_LIBS)
+	AC_DEFINE(HAVE_GDI, 1, [Have GDI library])
+fi
+AM_CONDITIONAL(HAVE_GDI, $have_gdi)
+
+dnl ===========================================================================
+
 AC_ARG_WITH(directwrite,
 	[AS_HELP_STRING([--with-directwrite=@<:@yes/no/auto@:>@],
 			[Use the DirectWrite library (experimental) @<:@default=no@:>@])],,
@@ -390,7 +370,7 @@ if test "x$with_directwrite" = "xyes" -a "x$have_directwrite" != "xtrue"; then
 fi
 if $have_directwrite; then
 	DIRECTWRITE_CXXFLAGS=
-	DIRECTWRITE_LIBS="-ldwrite"
+	DIRECTWRITE_LIBS=
 	AC_SUBST(DIRECTWRITE_CXXFLAGS)
 	AC_SUBST(DIRECTWRITE_LIBS)
 	AC_DEFINE(HAVE_DIRECTWRITE, 1, [Have DirectWrite library])
@@ -437,45 +417,6 @@ AM_CONDITIONAL(HAVE_CORETEXT, $have_coretext)
 
 dnl ===========================================================================
 
-AC_CACHE_CHECK([for Intel atomic primitives], hb_cv_have_intel_atomic_primitives, [
-	hb_cv_have_intel_atomic_primitives=false
-	AC_TRY_LINK([
-		void memory_barrier (void) { __sync_synchronize (); }
-		int atomic_add (int *i) { return __sync_fetch_and_add (i, 1); }
-		int mutex_trylock (int *m) { return __sync_lock_test_and_set (m, 1); }
-		void mutex_unlock (int *m) { __sync_lock_release (m); }
-		], [], hb_cv_have_intel_atomic_primitives=true
-	)
-])
-if $hb_cv_have_intel_atomic_primitives; then
-	AC_DEFINE(HAVE_INTEL_ATOMIC_PRIMITIVES, 1, [Have Intel __sync_* atomic primitives])
-fi
-
-dnl ===========================================================================
-
-AC_CACHE_CHECK([for Solaris atomic operations], hb_cv_have_solaris_atomic_ops, [
-	hb_cv_have_solaris_atomic_ops=false
-	AC_TRY_LINK([
-		#include <atomic.h>
-		/* This requires Solaris Studio 12.2 or newer: */
-		#include <mbarrier.h>
-		void memory_barrier (void) { __machine_rw_barrier (); }
-		int atomic_add (volatile unsigned *i) { return atomic_add_int_nv (i, 1); }
-		void *atomic_ptr_cmpxchg (volatile void **target, void *cmp, void *newval) { return atomic_cas_ptr (target, cmp, newval); }
-		], [], hb_cv_have_solaris_atomic_ops=true
-	)
-])
-if $hb_cv_have_solaris_atomic_ops; then
-	AC_DEFINE(HAVE_SOLARIS_ATOMIC_OPS, 1, [Have Solaris __machine_*_barrier and atomic_* operations])
-fi
-
-if test "$os_win32" = no && ! $have_pthread; then
-	AC_CHECK_HEADERS(sched.h)
-	AC_SEARCH_LIBS(sched_yield,rt,AC_DEFINE(HAVE_SCHED_YIELD, 1, [Have sched_yield]))
-fi
-
-dnl ===========================================================================
-
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
@@ -504,6 +445,14 @@ echo
 
 AC_MSG_NOTICE([
 
+Autotools is no longer our supported build system for building the library
+for *nix distributions, please migrate to meson.
+
+])
+
+
+AC_MSG_NOTICE([
+
 Build configuration:
 
 Unicode callbacks (you want at least one):
@@ -518,12 +467,13 @@ Tools used for command-line utilities:
 	Cairo:			${have_cairo}
 	Fontconfig:		${have_fontconfig}
 
-Additional shapers (the more the merrier):
+Additional shapers:
 	Graphite2:		${have_graphite2}
 
 Platform shapers (not normally needed):
 	CoreText:		${have_coretext}
 	DirectWrite:		${have_directwrite}
+	GDI:			${have_gdi}
 	Uniscribe:		${have_uniscribe}
 
 Other features:

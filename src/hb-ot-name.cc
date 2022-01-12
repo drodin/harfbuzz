@@ -26,9 +26,10 @@
 
 #include "hb.hh"
 
+#ifndef HB_NO_NAME
+
 #include "hb-ot-name-table.hh"
 
-#include "hb-ot-face.hh"
 #include "hb-utf.hh"
 
 
@@ -45,7 +46,7 @@
 /**
  * hb_ot_name_list_names:
  * @face: font face.
- * @num_entries: (out) (allow-none): number of returned entries.
+ * @num_entries: (out) (optional): number of returned entries.
  *
  * Enumerates all available name IDs and language combinations. Returned
  * array is owned by the @face and should not be modified.  It can be
@@ -58,11 +59,6 @@ const hb_ot_name_entry_t *
 hb_ot_name_list_names (hb_face_t    *face,
 		       unsigned int *num_entries /* OUT */)
 {
-#ifdef HB_NO_NAME
-  if (num_entries)
-    *num_entries = 0;
-  return 0;
-#endif
   const OT::name_accelerator_t &name = *face->table.name;
   if (num_entries) *num_entries = name.names.length;
   return (const hb_ot_name_entry_t *) name.names;
@@ -94,7 +90,7 @@ hb_ot_name_convert_utf (hb_bytes_t                       bytes,
       const typename in_utf_t::codepoint_t *src_next = in_utf_t::next (src, src_end, &unicode, replacement);
       typename out_utf_t::codepoint_t *dst_next = out_utf_t::encode (dst, dst_end, unicode);
       if (dst_next == dst)
-        break; /* Out-of-room. */
+	break; /* Out-of-room. */
 
       dst = dst_next;
       src = src_next;
@@ -154,7 +150,7 @@ hb_ot_name_get_utf (hb_face_t       *face,
  * @face: font face.
  * @name_id: OpenType name identifier to fetch.
  * @language: language to fetch the name for.
- * @text_size: (inout) (allow-none): input size of @text buffer, and output size of
+ * @text_size: (inout) (optional): input size of @text buffer, and output size of
  *                                   text written to buffer.
  * @text: (out caller-allocates) (array length=text_size): buffer to write fetched name into.
  *
@@ -172,11 +168,6 @@ hb_ot_name_get_utf8 (hb_face_t       *face,
 		     unsigned int    *text_size /* IN/OUT */,
 		     char            *text      /* OUT */)
 {
-#ifdef HB_NO_NAME
-  if (text_size)
-    *text_size = 0;
-  return 0;
-#endif
   return hb_ot_name_get_utf<hb_utf8_t> (face, name_id, language, text_size,
 					(hb_utf8_t::codepoint_t *) text);
 }
@@ -186,7 +177,7 @@ hb_ot_name_get_utf8 (hb_face_t       *face,
  * @face: font face.
  * @name_id: OpenType name identifier to fetch.
  * @language: language to fetch the name for.
- * @text_size: (inout) (allow-none): input size of @text buffer, and output size of
+ * @text_size: (inout) (optional): input size of @text buffer, and output size of
  *                                   text written to buffer.
  * @text: (out caller-allocates) (array length=text_size): buffer to write fetched name into.
  *
@@ -204,11 +195,6 @@ hb_ot_name_get_utf16 (hb_face_t       *face,
 		      unsigned int    *text_size /* IN/OUT */,
 		      uint16_t        *text      /* OUT */)
 {
-#ifdef HB_NO_NAME
-  if (text_size)
-    *text_size = 0;
-  return 0;
-#endif
   return hb_ot_name_get_utf<hb_utf16_t> (face, name_id, language, text_size, text);
 }
 
@@ -217,7 +203,7 @@ hb_ot_name_get_utf16 (hb_face_t       *face,
  * @face: font face.
  * @name_id: OpenType name identifier to fetch.
  * @language: language to fetch the name for.
- * @text_size: (inout) (allow-none): input size of @text buffer, and output size of
+ * @text_size: (inout) (optional): input size of @text buffer, and output size of
  *                                   text written to buffer.
  * @text: (out caller-allocates) (array length=text_size): buffer to write fetched name into.
  *
@@ -235,10 +221,8 @@ hb_ot_name_get_utf32 (hb_face_t       *face,
 		      unsigned int    *text_size /* IN/OUT */,
 		      uint32_t        *text      /* OUT */)
 {
-#ifdef HB_NO_NAME
-  if (text_size)
-    *text_size = 0;
-  return 0;
-#endif
   return hb_ot_name_get_utf<hb_utf32_t> (face, name_id, language, text_size, text);
 }
+
+
+#endif

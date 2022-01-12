@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include "hb-subset.h"
 
@@ -15,6 +16,7 @@ trySubset (hb_face_t *face,
 	   bool retain_gids)
 {
   hb_subset_input_t *input = hb_subset_input_create_or_fail ();
+  if (!input) return;
   hb_subset_input_set_drop_hints (input, drop_hints);
   hb_subset_input_set_retain_gids (input, retain_gids);
   hb_set_t *codepoints = hb_subset_input_unicode_set (input);
@@ -27,11 +29,22 @@ trySubset (hb_face_t *face,
   }
 
   for (int i = 0; i < text_length; i++)
-  {
     hb_set_add (codepoints, text[i]);
-  }
 
   hb_face_t *result = hb_subset (face, input);
+  {
+    hb_blob_t *blob = hb_face_reference_blob (result);
+    unsigned int length;
+    const char *data = hb_blob_get_data (blob, &length);
+
+    // Something not optimizable just to access all the blob data
+    unsigned int bytes_count = 0;
+    for (unsigned int i = 0; i < length; ++i)
+      if (data[i]) ++bytes_count;
+    assert (bytes_count || !length);
+
+    hb_blob_destroy (blob);
+  }
   hb_face_destroy (result);
 
   hb_subset_input_destroy (input);
@@ -50,14 +63,16 @@ trySubset (hb_face_t *face,
 	     drop_hints, drop_layout, retain_gids);
 }
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
+extern "C" int LLVMFuzzerTestOneInput (const uint8_t *data, size_t size)
 {
-  hb_blob_t *blob = hb_blob_create ((const char *)data, size,
-				    HB_MEMORY_MODE_READONLY, NULL, NULL);
+  alloc_state = size; /* see src/failing-alloc.c */
+
+  hb_blob_t *blob = hb_blob_create ((const char *) data, size,
+				    HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   hb_face_t *face = hb_face_create (blob, 0);
 
   /* Just test this API here quickly. */
-  hb_set_t *output = hb_set_create();
+  hb_set_t *output = hb_set_create ();
   hb_face_collect_unicodes (face, output);
   hb_set_destroy (output);
 
@@ -71,14 +86,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
   trySubset (face, text, sizeof (text) / sizeof (hb_codepoint_t), flags);
 
   hb_codepoint_t text_from_data[16];
-  if (size > sizeof(text_from_data) + sizeof(flags)) {
+  if (size > sizeof (text_from_data) + sizeof (flags)) {
     memcpy (text_from_data,
-	    data + size - sizeof(text_from_data),
-	    sizeof(text_from_data));
+	    data + size - sizeof (text_from_data),
+	    sizeof (text_from_data));
 
     memcpy (flags,
-	    data + size - sizeof(text_from_data) - sizeof(flags),
-	    sizeof(flags));
+	    data + size - sizeof (text_from_data) - sizeof (flags),
+	    sizeof (flags));
     unsigned int text_size = sizeof (text_from_data) / sizeof (hb_codepoint_t);
 
     trySubset (face, text_from_data, text_size, flags);

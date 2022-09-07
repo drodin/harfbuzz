@@ -486,7 +486,7 @@ if (UNIX OR MINGW)
     link_libraries(-Bsymbolic-functions)
   endif ()
 
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Make sure we don't link to libstdc++
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
     set (CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "m") # libm
@@ -499,6 +499,11 @@ if (UNIX OR MINGW)
     # No threadsafe statics as we do it ourselves
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-threadsafe-statics")
   endif ()
+
+  # Temp fix for unused-but-set-variable error in release build with Clang version > 13
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+    add_definitions(-DHB_NO_PRAGMA_GCC_DIAGNOSTIC_ERROR)
+  endif()
 
   CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
   if (COMPILER_SUPPORTS_CXX11)
